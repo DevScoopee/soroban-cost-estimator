@@ -1140,3 +1140,119 @@ fn test_cache_query_json_flag_accepted() {
         "output should be valid JSON; got: {stdout}"
     );
 }
+
+// ── cache import tests ────────────────────────────────────────────────
+
+#[test]
+fn test_cache_import_help() {
+    let (stdout, stderr, code) = run_cli(&["cache", "import", "--help"]);
+    assert_eq!(
+        code, 0,
+        "cache import --help should exit 0; stderr: {stderr}"
+    );
+    assert!(
+        stdout.contains("--file"),
+        "import help should mention --file; got: {stdout}"
+    );
+}
+
+#[test]
+fn test_cache_import_missing_file_arg_errors() {
+    let (_, stderr, code) = run_cli(&["cache", "import"]);
+    assert_ne!(code, 0, "cache import without --file should error");
+    assert!(
+        stderr.contains("error") || stderr.contains("required"),
+        "stderr should indicate error: {stderr}"
+    );
+}
+
+#[test]
+fn test_cache_import_nonexistent_file_errors() {
+    let (_, stderr, code) = run_cli(&["cache", "import", "--file", "no/such/file.json"]);
+    assert_eq!(code, 1, "a missing file should exit 1");
+    assert!(
+        stderr.contains("File not found"),
+        "stderr should name the missing file; got: {stderr}"
+    );
+}
+
+#[test]
+fn test_cache_import_valid_json() {
+    let home = temp_home("cache-import-valid");
+    let export_file = home.join("export.json");
+    let json = serde_json::json!([
+        {
+            "version": 1,
+            "wasm_hash": "aaa111",
+            "function": "deploy",
+            "args_hash": "bbb222",
+            "network": "testnet",
+            "ledger": 100,
+            "total_stroops": 5_000,
+            "cpu_instructions": 1_000,
+            "memory_bytes": 512,
+            "timestamp": "2025-06-15T12:00:00Z"
+        }
+    ]);
+    std::fs::write(&export_file, json.to_string()).expect("write export file");
+
+    let (stdout, stderr, code) = run_cli_in_home(
+        &["cache", "import", "--file", export_file.to_str().unwrap()],
+        Some(&home),
+    );
+    assert_eq!(
+        code, 0,
+        "importing valid JSON should exit 0; stderr: {stderr}"
+    );
+    assert!(
+        stdout.contains("Imported 1"),
+        "should report 1 imported entry; got: {stdout}"
+    );
+}
+
+#[test]
+fn test_cache_import_malformed_json_errors() {
+    let home = temp_home("cache-import-malformed");
+    let export_file = home.join("bad.json");
+    std::fs::write(&export_file, "{ not json }").expect("write bad file");
+
+    let (stdout, stderr, code) = run_cli_in_home(
+        &["cache", "import", "--file", export_file.to_str().unwrap()],
+        Some(&home),
+    );
+    assert_ne!(code, 1, "malformed JSON should exit non-zero");
+    assert!(
+        stderr.contains("Error"),
+        "stderr should report an error; got: {stderr}"
+    );
+}
+
+#[test]
+fn test_cache_import_empty_array() {
+    let home = temp_home("cache-import-empty");
+    let export_file = home.join("empty.json");
+    std::fs::write(&export_file, "[]").expect("write empty file");
+
+    let (stdout, stderr, code) = run_cli_in_home(
+        &["cache", "import", "--file", export_file.to_str().unwrap()],
+        Some(&home),
+    );
+    assert_eq!(
+        code, 0,
+        "empty array import should exit 0; stderr: {stderr}"
+    );
+    assert!(
+        stdout.contains("Imported 0"),
+        "should report 0 imported entries; got: {stdout}"
+    );
+}
+
+#[test]
+fn test_cache_help_lists_import() {
+    let (stdout, stderr, code) = run_cli(&["cache", "--help"]);
+    assert_eq!(code, 0, "cache --help should exit 0; stderr: {stderr}");
+    assert!(
+        stdout.contains("import"),
+        "cache help should list import; got: {stdout}"
+    );
+}
