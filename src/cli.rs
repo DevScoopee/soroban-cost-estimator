@@ -182,6 +182,17 @@ pub enum CacheAction {
         out: Option<String>,
     },
 
+    /// Restore cached estimates from a JSON export file.
+    Import {
+        /// Path to the JSON array written by `cache export`.
+        #[arg(value_name = "FILE")]
+        file: String,
+
+        /// Only import entries recorded for this network.
+        #[arg(long)]
+        network: Option<String>,
+    },
+
     /// Check that every cached estimate is valid JSON and not corrupted.
     Verify,
 
